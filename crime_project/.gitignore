@@ -1,0 +1,11 @@
+data/*.csv
+!data/.gitkeep
+
+outputs/
+*.html
+*.png
+*.jpg
+*.pdf
+*.xlsx
+*.json
+*.pkl
