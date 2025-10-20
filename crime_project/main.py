@@ -1,34 +1,44 @@
-# ==========================================================
-from scripts.utils import load_dataset, show_nulls
-from scripts.visualization import plot_exploratory
-from scripts.preprocess import prepare_features, handle_outliers, build_preprocessor
-from scripts.modeling import train_models, compare_results, plot_confusion_matrix
-
+import pandas as pd
+import joblib
 from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from imblearn.over_sampling import SMOTE
+from sklearn.metrics import classification_report
+from scripts.preprocess import prepare_features, build_preprocessor
+from scripts.utils import ensure_outputs
 
-# 1️⃣ Carregamento
-df = load_dataset("data/dataset_ocorrencias_delegacia_5.csv")
-show_nulls(df)
-
-# 2️⃣ Visualização inicial
-plot_exploratory(df)
-
-# 3️⃣ Pré-processamento
+# Carregar dataset
+df = pd.read_csv("data/dataset_ocorrencias_delegacia_5.csv")
 df_modelo, X, y = prepare_features(df)
 
-numericas = ["quantidade_vitimas", "quantidade_suspeitos", "idade_suspeito", "mes", "dia", "ano", "dia_semana"]
-categoricas = ["bairro", "descricao_modus_operandi", "arma_utilizada", "sexo_suspeito"]
+# Colunas
+categoricas = ["bairro", "arma_utilizada", "sexo_suspeito"]
+numericas = ["quantidade_vitimas","quantidade_suspeitos","idade_suspeito","mes","dia","ano","dia_semana","latitude","longitude"]
+text_cols = ["descricao_modus_operandi"]
 
-X = handle_outliers(X, numericas)
+# Dividir treino/teste
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42, stratify=y)
 
-# Split temporal simples (ajuste conforme dataset)
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-preprocessador = build_preprocessor(categoricas, numericas)
+# Criar preprocessor completo e fitar
+preprocessor = build_preprocessor(categoricas, numericas, text_cols)
+preprocessor.fit(X_train)  # ⚠️ fit obrigatório
+X_train_trans = preprocessor.transform(X_train)
+X_test_trans = preprocessor.transform(X_test)
 
-# 4️⃣ Modelagem
-modelos = train_models(X_train, y_train, X_test, y_test, preprocessador)
-df_resultados = compare_results(modelos, y_test)
+# Aplicar SMOTE
+smote = SMOTE(random_state=42)
+X_train_bal, y_train_bal = smote.fit_resample(X_train_trans, y_train)
 
-# 5️⃣ Avaliação final (Random Forest)
-rf_model, y_pred_rf = modelos["Random Forest"]
-plot_confusion_matrix(rf_model, y_test, y_pred_rf)
+# Treinar RandomForest
+rf_model = RandomForestClassifier(n_estimators=500, random_state=42)
+rf_model.fit(X_train_bal, y_train_bal)
+
+# Avaliar
+y_pred = rf_model.predict(X_test_trans)
+print(classification_report(y_test, y_pred))
+
+# Salvar modelos e preprocessor fitado
+ensure_outputs()
+joblib.dump(rf_model, "outputs/rf_model.pkl")
+joblib.dump(preprocessor, "outputs/preprocessor.pkl")  # já fitado
+print("✅ Modelos e preprocessor salvos com sucesso!")

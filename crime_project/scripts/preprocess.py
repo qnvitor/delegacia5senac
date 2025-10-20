@@ -1,63 +1,117 @@
 # ==========================================================
-# Limpeza e preparação dos dados
+# preprocess.py
 # ==========================================================
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler, FunctionTransformer
+from sklearn.impute import SimpleImputer
+from sklearn.feature_extraction.text import TfidfVectorizer
 
-plt.style.use("seaborn-v0_8")
-sns.set_palette("Set2")
+# ============================
+# Função global para extrair coluna de texto
+# ============================
+def get_text_column(X, col_name):
+    """Extrai a coluna de texto como vetor 1D de strings para TF-IDF."""
+    return X[col_name].astype(str)
 
-
-def prepare_features(df: pd.DataFrame):
-    """Cria colunas derivadas da data e separa features/alvo."""
-    df["data_ocorrencia"] = pd.to_datetime(df["data_ocorrencia"], errors="coerce")
-    df["mes"] = df["data_ocorrencia"].dt.month
-    df["dia"] = df["data_ocorrencia"].dt.day
-    df["ano"] = df["data_ocorrencia"].dt.year
-    df["dia_semana"] = df["data_ocorrencia"].dt.dayofweek
-
-    colunas_features = [
-        "bairro",
-        "descricao_modus_operandi",
-        "arma_utilizada",
-        "quantidade_vitimas",
-        "quantidade_suspeitos",
-        "sexo_suspeito",
-        "idade_suspeito",
-        "mes",
-        "dia",
-        "ano",
-        "dia_semana",
-    ]
-    coluna_alvo = "tipo_crime"
-
-    df_modelo = df[colunas_features + [coluna_alvo]].copy()
-    X = df_modelo[colunas_features]
-    y = df_modelo[coluna_alvo]
-    return df_modelo, X, y
-
-
-def handle_outliers(X: pd.DataFrame, numericas: list):
-    """Trata outliers com método IQR (clipping)."""
+# ============================
+# Tratamento de outliers numéricos
+# ============================
+def handle_outliers(df, numericas, method="clip"):
+    """
+    Trata outliers em colunas numéricas.
+    method: 'clip' (limita pelo IQR) ou 'drop' (remove linhas)
+    """
+    df = df.copy()
     for col in numericas:
-        Q1 = X[col].quantile(0.25)
-        Q3 = X[col].quantile(0.75)
+        if col not in df.columns:
+            continue
+        Q1 = df[col].quantile(0.25)
+        Q3 = df[col].quantile(0.75)
         IQR = Q3 - Q1
-        limite_inferior = Q1 - 1.5 * IQR
-        limite_superior = Q3 + 1.5 * IQR
-        X[col] = np.where(X[col] < limite_inferior, limite_inferior,
-                 np.where(X[col] > limite_superior, limite_superior, X[col]))
-    return X
+        lower = Q1 - 1.5 * IQR
+        upper = Q3 + 1.5 * IQR
+        if method == "clip":
+            df.loc[:, col] = df[col].clip(lower, upper)
+        elif method == "drop":
+            df = df[(df[col] >= lower) & (df[col] <= upper)]
+    return df
 
+# ============================
+# Preparar features do dataset
+# ============================
+def prepare_features(df):
+    """
+    Retorna df_modelo, X_all e y.
+    Assume que 'tipo_crime' é target.
+    """
+    df_modelo = df.copy()
 
-def build_preprocessor(categoricas, numericas):
-    """Cria o pré-processador com OneHotEncoder + StandardScaler."""
-    return ColumnTransformer([
-        ("cat", OneHotEncoder(handle_unknown="ignore"), categoricas),
-        ("num", StandardScaler(), numericas)
-    ])
+    # Target
+    if "tipo_crime" in df_modelo.columns:
+        y = df_modelo["tipo_crime"]
+    else:
+        y = None
+
+    # Features principais
+    X_all = df_modelo.copy()
+    if "tipo_crime" in X_all.columns:
+        X_all = X_all.drop(columns=["tipo_crime"])
+
+    return df_modelo, X_all, y
+
+# ============================
+# Construir preprocessor completo
+# ============================
+def build_preprocessor(categoricas, numericas, text_cols=None):
+    """
+    Cria ColumnTransformer completo:
+    - Categóricas → imputação + OneHotEncoder
+    - Numéricas → imputação + StandardScaler
+    - Texto → TF-IDF
+    """
+    transformers = []
+
+    # ============================
+    # CATEGÓRICAS
+    # ============================
+    if categoricas:
+        cat_pipe = Pipeline([
+            ("imputer", SimpleImputer(strategy="constant", fill_value="NA")),
+            ("ohe", OneHotEncoder(handle_unknown="ignore", sparse_output=False))
+        ])
+        transformers.append(("cat", cat_pipe, categoricas))
+
+    # ============================
+    # NUMÉRICAS
+    # ============================
+    if numericas:
+        num_pipe = Pipeline([
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler())
+        ])
+        transformers.append(("num", num_pipe, numericas))
+
+    # ============================
+    # TEXTO (TF-IDF)
+    # ============================
+    if text_cols:
+        for col in text_cols:
+            text_pipe = Pipeline([
+                ("selector", FunctionTransformer(func=get_text_column, kw_args={"col_name": col}, validate=False)),
+                ("tfidf", TfidfVectorizer(
+                    max_features=500,
+                    ngram_range=(1,2),
+                    min_df=2,
+                    max_df=0.95
+                ))
+            ])
+            transformers.append((f"tfidf_{col}", text_pipe, [col]))
+
+    # ============================
+    # COMBINA TUDO
+    # ============================
+    preprocessor = ColumnTransformer(transformers, remainder="drop")
+    return preprocessor
