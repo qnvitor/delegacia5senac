@@ -151,8 +151,14 @@ elif aba == "Anomalias":
 elif aba == "Modelos Supervisionados":
     st.header("🤖 Previsão de Tipo de Crime")
 
-    # Carregar modelo (que já inclui o preprocessor)
-    rf_model = joblib.load("outputs/rf_model.pkl")
+    # Carregar modelo e preprocessor
+    try:
+        rf_model = joblib.load("outputs/rf_model.pkl")
+        preprocessor = joblib.load("outputs/preprocessor.pkl")
+    except FileNotFoundError as e:
+        st.error(f"❌ Arquivo não encontrado: {e}")
+        st.info("Execute primeiro o script main.py para treinar os modelos.")
+        st.stop()
 
     st.write("Use o formulário abaixo para prever o tipo de crime:")
 
@@ -169,8 +175,7 @@ elif aba == "Modelos Supervisionados":
         if descricao_modus_operandi.strip() == "":
             descricao_modus_operandi = "sem descricao"
 
-        # Criar DataFrame com os inputs do usuário e colunas obrigatórias
-        # O preprocessor espera exatamente estas 13 colunas (sem tipo_crime)
+        # Criar DataFrame com os inputs do usuário
         X_new = pd.DataFrame([{
             "id_ocorrencia": "user_input_001",
             "data_ocorrencia": "2024-01-01",
@@ -187,10 +192,21 @@ elif aba == "Modelos Supervisionados":
             "longitude": 0.0
         }])
 
-        # Prever usando pipeline completo (inclui preprocessor + modelo)
-        y_pred = rf_model.predict(X_new)
-
-        st.success(f"🔮 Tipo de crime previsto: {y_pred[0]}")
+        try:
+            # Preparar features (extrair componentes de data)
+            _, X_processed, _ = prepare_features(X_new)
+            
+            # Aplicar preprocessor
+            X_transformed = preprocessor.transform(X_processed)
+            
+            # Prever usando modelo
+            y_pred = rf_model.predict(X_transformed)
+            
+            st.success(f"🔮 Tipo de crime previsto: {y_pred[0]}")
+            
+        except Exception as e:
+            st.error(f"❌ Erro na previsão: {str(e)}")
+            st.info("Verifique se os dados de entrada estão no formato correto.")
 
 # ======================================
 # 5️⃣ Relatório Final

@@ -46,8 +46,20 @@ def prepare_features(df):
     """
     Retorna df_modelo, X_all e y.
     Assume que 'tipo_crime' é target.
+    Extrai componentes de data da coluna 'data_ocorrencia'.
     """
     df_modelo = df.copy()
+
+    # Extrair componentes de data se a coluna existir
+    if "data_ocorrencia" in df_modelo.columns:
+        df_modelo["data_ocorrencia"] = pd.to_datetime(df_modelo["data_ocorrencia"])
+        df_modelo["ano"] = df_modelo["data_ocorrencia"].dt.year
+        df_modelo["mes"] = df_modelo["data_ocorrencia"].dt.month
+        df_modelo["dia"] = df_modelo["data_ocorrencia"].dt.day
+        df_modelo["dia_semana"] = df_modelo["data_ocorrencia"].dt.dayofweek
+        
+        # Remover a coluna original de data após extrair os componentes
+        df_modelo = df_modelo.drop(columns=["data_ocorrencia"])
 
     # Target
     if "tipo_crime" in df_modelo.columns:
