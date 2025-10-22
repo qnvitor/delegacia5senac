@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+import subprocess
 import folium
 from folium.plugins import HeatMap
 from streamlit_folium import st_folium
@@ -24,19 +25,11 @@ st.set_page_config(page_title="Delegacia Senac", layout="wide", page_icon="🔍"
 st.title("📊 Delegacia Senac Dashboard")
 st.markdown("### Explore, descubra padrões e analise modelos de previsão de crimes.")
 
-with st.spinner("Preparando os dados..."):
-
-    #Verifica se os arquivos gerados pelo main.py já existem
-    preprocessed_path = "outputs/preprocessed_data.pkl"
-    model_path = "outputs/rf_model.pkl"
-
-    if not os.path.exists(preprocessed_path) or not os.path.exists(model_path):
-        # Só roda o main se os arquivos não existirem
-        main.run()
-        st.success("✅ Pré-processamento e treinamento concluídos!")
-    else:
-        st.info("Dados e modelos já preparados. Pulando execução do main.py.")
-
+if "main_executado" not in st.session_state:
+    st.session_state["main_executado"] = True
+    with st.spinner("🔄 Executando setup inicial (main.py)..."):
+        main.run()  # executa a função run() definida no main.py
+        st.success("✅ Setup inicial concluído!")
 
 @st.cache_data(show_spinner=False)
 def load_default_dataset():
@@ -48,8 +41,8 @@ def load_uploaded_csv(upload):
 
 @st.cache_resource(show_spinner=False)
 def load_model_and_preprocessor():
-    rf_model = joblib.load("outputs/rf_model.pkl")
-    preprocessor = joblib.load("outputs/preprocessor.pkl")
+    rf_model = joblib.load("outputs/logistic_model.pkl")
+    preprocessor = joblib.load("outputs/preprocessor_full.pkl")
     return rf_model, preprocessor
 
 
@@ -152,8 +145,7 @@ if aba == "Modelos Supervisionados":
 
             try:
                 _, X_processed, _ = prepare_features(X_new)
-                X_transformed = preprocessor.transform(X_processed)
-                y_pred = rf_model.predict(X_transformed)
+                y_pred = rf_model.predict(X_processed)
                 st.success(f"🔮 Tipo de crime previsto: **{y_pred[0]}**")
             except Exception as e:
                 st.error(f"❌ Erro na previsão: {str(e)}")

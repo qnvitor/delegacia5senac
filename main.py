@@ -32,7 +32,6 @@ def run():
     ]
     check_columns(df, required=req_cols)
 
-
     plot_exploratory(df, save=True)
     heatmap_hotspots(df)
 
@@ -53,12 +52,10 @@ def run():
     if numericas:
         X_all.loc[:, numericas] = handle_outliers(X_all, numericas)
 
-
     preproc = build_preprocessor(categoricas, numericas, text_cols=text_cols)
     preproc.fit(X_all, y)
     joblib.dump(preproc, "outputs/preprocessor_full.pkl")
     print("✅ Preprocessor (com TF-IDF) fitado e salvo em outputs/preprocessor_full.pkl")
-
 
     if y is not None:
         X_train, X_test, y_train, y_test = train_test_split(
@@ -70,6 +67,7 @@ def run():
 
     if y is not None:
         results = train_classifiers(X_train, y_train, X_test, y_test, preproc)
+
 
         cols_for_clust = numericas + categoricas
         X_clust = pd.get_dummies(
@@ -84,7 +82,7 @@ def run():
         print("📊 Descrições de clusters:")
         print(desc)
     else:
-        print("⚠️ Sem target - pulando modelagem supervisionada.")
+        print("⚠️ Sem target — pulando modelagem supervisionada.")
 
 if __name__ == "__main__":
     run()

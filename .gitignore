@@ -45,7 +45,6 @@ venv.bak/
 # Machine Learning Models and Data
 # ==========================================================
 !data/.gitkeep
-outputs/
 *.pkl
 *.joblib
 *.h5
@@ -61,15 +60,15 @@ catboost_info/
 # ==========================================================
 # Visualization outputs
 # ==========================================================
-*.html
-*.png
 *.jpg
+*.png
 *.jpeg
 *.gif
 *.svg
 *.pdf
 *.xlsx
 *.xls
+*.html
 
 # ==========================================================
 # IDE and Editor files
