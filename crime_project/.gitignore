@@ -44,7 +44,6 @@ venv.bak/
 # ==========================================================
 # Machine Learning Models and Data
 # ==========================================================
-data/*.csv
 !data/.gitkeep
 outputs/
 *.pkl
